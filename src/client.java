@@ -5,7 +5,7 @@ import java.nio.ByteBuffer;
 public class client {
     static String addr = "192.168.0.35";
     static Integer port = 1234;
-    static String path = "C:\\study\\assignments\\seti\\02_sendfile\\test\\test.txt";
+    static String path = "C:\\study\\assignments\\seti\\02_sendfile\\test\\MTP1.doc";
     public static void main(String[] args) {
         try {
             Socket socket = new Socket(addr, port);
