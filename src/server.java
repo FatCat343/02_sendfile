@@ -10,7 +10,7 @@ import static java.time.temporal.ChronoUnit.SECONDS;
 
 class DownloadProgress{
     public LocalTime time; //time client is on server
-    public int speed; //current speed
+    public double speed; //current speed
     public int total; //bytes downloaded
     public int valid = 1;
 
@@ -22,8 +22,11 @@ public class server {
         try {
             ServerSocket in = new ServerSocket(port);
             TimeHandler.StartTimeHandler(speeds);
+            System.out.println(in.getInetAddress().getHostAddress());
+            System.out.println("ready to wait");
             while (true) {
                 Socket client = in.accept();
+                System.out.println("accepted new client");
                 ClientHandler.StartClientHandler(client, speeds);
             }
         } catch (IOException e) {
@@ -39,9 +42,10 @@ class ClientHandler implements Runnable{
         //get name + size + file itself
         DownloadProgress dp = new DownloadProgress();
         dp.valid = 1;
+
         try {
             BufferedInputStream input = new BufferedInputStream(client.getInputStream());
-
+            BufferedOutputStream sock = new BufferedOutputStream(client.getOutputStream());
             InetAddress inetAddress;
             SocketAddress socketAddress = client.getRemoteSocketAddress(); //get client's IP
             inetAddress = ((InetSocketAddress)socketAddress).getAddress();
@@ -52,30 +56,50 @@ class ClientHandler implements Runnable{
                 else
                     System.err.println("Not an IP address.");
 
-            speeds.put(inetAddress, dp);
+            //System.out.println("1");
             byte [] byteArray = new byte[8192];
             LocalTime start = LocalTime.now();     //?
             int len = input.read(byteArray);
-
+            System.out.println("got byte array");
             String name = new String(byteArray, StandardCharsets.UTF_8); //gets name of file
-            BufferedOutputStream output = new BufferedOutputStream(new FileOutputStream("uploads/" + name));
+            System.out.println("name length = " + name.length() + "len = " + len);
+            System.out.println( name.split("\\.(?=[^\\.]+$)")[0] + "." + name.split("\\.(?=[^\\.]+$)")[1] + "\ndfhdsfh");
+
+            File file = new File("C:\\study\\assignments\\seti\\02_sendfile\\uploads\\" + name.substring(0, len));
+            sock.write("send size".getBytes());
+            sock.flush();
+            BufferedOutputStream output = new BufferedOutputStream(new FileOutputStream(file));
 
             len += input.read(byteArray);
-            int size = ByteBuffer.wrap(byteArray).getInt(); //gets size of file
-            speeds.get(inetAddress).total = len;
-            speeds.get(inetAddress).time = LocalTime.from(start);
-            speeds.get(inetAddress).speed = len/LocalTime.from(start).getSecond();
+            long size = ByteBuffer.wrap(byteArray).getLong(); //gets size of file
+            System.out.println("size = " + size);
+            sock.write("send file".getBytes());
+            sock.flush();
+            dp.total = len;
+            dp.time = LocalTime.from(start);
+            if (LocalTime.from(start).getSecond() != 0) dp.speed = len/LocalTime.from(start).getSecond();
+                else dp.speed = 0;
+            speeds.put(inetAddress, dp);
 
             LocalTime looptime = LocalTime.now();
-            while ((len = input.read(byteArray)) != -1){
+            len = input.read(byteArray);
+            while (len != -1){
                 output.write(byteArray,0,len);
+                output.flush();
                 //write method uplod to DownloadProgress???
                 speeds.get(inetAddress).total += len;
                 speeds.get(inetAddress).time = LocalTime.from(start);
-                speeds.get(inetAddress).speed = len/LocalTime.from(looptime).getSecond();
+                if (LocalTime.from(looptime).getSecond() != 0) speeds.get(inetAddress).speed = len/LocalTime.from(looptime).getSecond();
                 looptime = LocalTime.now();
+                System.out.println("gor some piece of file");
+                len = input.read(byteArray);
             }
+            sock.write("operation completed".getBytes());
+            sock.flush();
             speeds.get(inetAddress).valid = 0;
+            System.out.println("finished with client");
+            input.close();
+            output.close();
         } catch (IOException e) {
             dp.valid = 0;
             e.printStackTrace();
@@ -120,12 +144,13 @@ class TimeHandler implements Runnable{
                 sleep(3000);
             } catch (InterruptedException e) {
                 e.printStackTrace();
+                System.out.println("sleep was interrupted");
             }
             Iterator it = speeds.entrySet().iterator();
             while (it.hasNext()) {
                 Map.Entry pair = (Map.Entry) it.next();
                 DownloadProgress dp = (DownloadProgress)pair.getValue();
-                System.out.println("Client : "  + pair.getKey() + "\t Speed : "  + dp.speed + "\t Average Speed : "  + dp.total/dp.time.getSecond());
+                System.out.println("Client : "  + pair.getKey() + "\t Speed : "  + dp.speed + "\t Average Speed : "  + (double)dp.total/dp.time.getSecond());
                 if (dp.valid == 0) { //timeout
                     it.remove();
                 }
