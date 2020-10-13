@@ -22,7 +22,6 @@ public class server {
         try {
             ServerSocket in = new ServerSocket(port);
             TimeHandler.StartTimeHandler(speeds);
-            System.out.println(in.getInetAddress().getHostAddress());
             System.out.println("ready to wait");
             while (true) {
                 Socket client = in.accept();
@@ -39,13 +38,9 @@ class ClientHandler implements Runnable{
     Socket client;
     Hashtable<InetAddress, DownloadProgress> speeds;
     public void run(){
-        //get name + size + file itself
         DownloadProgress dp = new DownloadProgress();
         dp.valid = 1;
-
-        try {
-            BufferedInputStream input = new BufferedInputStream(client.getInputStream());
-            BufferedOutputStream sock = new BufferedOutputStream(client.getOutputStream());
+        try(DataInputStream input = new DataInputStream(client.getInputStream());) {
             InetAddress inetAddress;
             SocketAddress socketAddress = client.getRemoteSocketAddress(); //get client's IP
             inetAddress = ((InetSocketAddress)socketAddress).getAddress();
@@ -56,50 +51,42 @@ class ClientHandler implements Runnable{
                 else
                     System.err.println("Not an IP address.");
 
-            //System.out.println("1");
             byte [] byteArray = new byte[8192];
             LocalTime start = LocalTime.now();     //?
-            int len = input.read(byteArray);
-            System.out.println("got byte array");
-            String name = new String(byteArray, StandardCharsets.UTF_8); //gets name of file
-            System.out.println("name length = " + name.length() + "len = " + len);
-            System.out.println( name.split("\\.(?=[^\\.]+$)")[0] + "." + name.split("\\.(?=[^\\.]+$)")[1] + "\ndfhdsfh");
-
-            File file = new File("C:\\study\\assignments\\seti\\02_sendfile\\uploads\\" + name.substring(0, len));
-            sock.write("send size".getBytes());
-            sock.flush();
-            BufferedOutputStream output = new BufferedOutputStream(new FileOutputStream(file));
-
-            len += input.read(byteArray);
-            long size = ByteBuffer.wrap(byteArray).getLong(); //gets size of file
-            System.out.println("size = " + size);
-            sock.write("send file".getBytes());
-            sock.flush();
-            dp.total = len;
-            dp.time = LocalTime.from(start);
-            if (LocalTime.from(start).getSecond() != 0) dp.speed = len/LocalTime.from(start).getSecond();
-                else dp.speed = 0;
-            speeds.put(inetAddress, dp);
-
-            LocalTime looptime = LocalTime.now();
-            len = input.read(byteArray);
-            while (len != -1){
-                output.write(byteArray,0,len);
-                output.flush();
-                //write method uplod to DownloadProgress???
-                speeds.get(inetAddress).total += len;
-                speeds.get(inetAddress).time = LocalTime.from(start);
-                if (LocalTime.from(looptime).getSecond() != 0) speeds.get(inetAddress).speed = len/LocalTime.from(looptime).getSecond();
-                looptime = LocalTime.now();
-                System.out.println("gor some piece of file");
-                len = input.read(byteArray);
+            int len = input.readInt();
+            String name = "";
+            for (int i = 0; i < len; i++){
+                char a = input.readChar();
+                System.out.println(a);
+                name = name.concat(Character.toString(a));
             }
-            sock.write("operation completed".getBytes());
-            sock.flush();
-            speeds.get(inetAddress).valid = 0;
-            System.out.println("finished with client");
-            input.close();
-            output.close();
+            System.out.println("name = " + name);
+            File file = new File("C:\\study\\assignments\\seti\\02_sendfile\\uploads\\" + name.substring(0, len));
+            try (BufferedOutputStream output = new BufferedOutputStream(new FileOutputStream(file));) {
+                len += input.read(byteArray);
+                long size = ByteBuffer.wrap(byteArray).getLong(); //gets size of file
+                System.out.println("size = " + size);
+                dp.total = len;
+                dp.time = LocalTime.from(start);
+                if (LocalTime.from(start).getSecond() != 0) dp.speed = (double) len / LocalTime.from(start).getNano();
+                else dp.speed = 0;
+                speeds.put(inetAddress, dp);
+
+                LocalTime looptime = LocalTime.now();
+                len = input.read(byteArray);
+                while (len != -1) {
+                    output.write(byteArray, 0, len);
+                    output.flush();
+                    speeds.get(inetAddress).total += len;
+                    speeds.get(inetAddress).time = LocalTime.from(start);
+                    if (LocalTime.from(looptime).getSecond() != 0)
+                        speeds.get(inetAddress).speed = (double) len / LocalTime.from(looptime).getNano();
+                    looptime = LocalTime.now();
+                    len = input.read(byteArray);
+                }
+                speeds.get(inetAddress).valid = 0;
+                System.out.println("finished with client");
+            }
         } catch (IOException e) {
             dp.valid = 0;
             e.printStackTrace();
@@ -138,7 +125,6 @@ class TimeHandler implements Runnable{
         t.start();
     }
     private void ShowSpeed(){
-        //Enumeration<InetAddress> enumeration = speeds.keys();
         while (true) {
             try {
                 sleep(3000);
@@ -150,7 +136,7 @@ class TimeHandler implements Runnable{
             while (it.hasNext()) {
                 Map.Entry pair = (Map.Entry) it.next();
                 DownloadProgress dp = (DownloadProgress)pair.getValue();
-                System.out.println("Client : "  + pair.getKey() + "\t Speed : "  + dp.speed + "\t Average Speed : "  + (double)dp.total/dp.time.getSecond());
+                System.out.println("Client : "  + pair.getKey() + "\t Speed : "  + dp.speed * 1000000000 + "\t Average Speed : "  + (double)dp.total * 1000000000/dp.time.getNano());
                 if (dp.valid == 0) { //timeout
                     it.remove();
                 }
