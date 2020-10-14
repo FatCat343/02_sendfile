@@ -51,15 +51,20 @@ class ClientHandler implements Runnable{
                 else
                     System.err.println("Not an IP address.");
 
-            byte [] byteArray = new byte[8192];
+
             LocalTime start = LocalTime.now();     //?
             int len = input.readInt();
-            String name = "";
-            for (int i = 0; i < len; i++){
-                char a = input.readChar();
-                System.out.println(a);
-                name = name.concat(Character.toString(a));
+            byte [] byteArray = new byte[len];
+//            for (int i = 0; i < len; i++){ //
+//                char a = input.readChar();
+//                System.out.println(a);
+//                name = name.concat(Character.toString(a));
+//            }
+            int namelen = 0;
+            while (namelen < len) {
+                namelen+= input.read(byteArray, 0, len);
             }
+            String name = new String(byteArray, StandardCharsets.UTF_8);
             System.out.println("name = " + name);
             File file = new File("C:\\study\\assignments\\seti\\02_sendfile\\uploads\\" + name.substring(0, len));
             try (BufferedOutputStream output = new BufferedOutputStream(new FileOutputStream(file));) {

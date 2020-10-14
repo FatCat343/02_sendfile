@@ -1,9 +1,10 @@
 import java.io.*;
 import java.net.Socket;
 import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
 
 public class client {
-    static String addr = "192.168.0.35";
+    static String addr = "10.9.44.247";
     static Integer port = 1234;
     static String path = "C:\\study\\assignments\\seti\\02_sendfile\\test\\MTP1.doc";
     public static void main(String[] args) {
@@ -12,12 +13,11 @@ public class client {
                          BufferedInputStream input = new BufferedInputStream(new FileInputStream(path));) {
              byte [] byteArray = new byte[8192];
             File file = new File(path);
-            output.writeInt(file.getName().length()); //send size of filename
+            output.writeInt(file.getName().getBytes(StandardCharsets.UTF_8).length); //send size of filename
             output.flush();
-            output.writeChars(file.getName()); //send size of filename
+            output.write(file.getName().getBytes(StandardCharsets.UTF_8)); //send filename
             output.flush();
             System.out.println("sent name");
-
             ByteBuffer buffer = ByteBuffer.allocate(Long.BYTES);
             buffer.putLong(file.length()); //|long| >= 10^12 bytes
             System.out.println("file length = "+ file.length());
