@@ -4,6 +4,7 @@ import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalTime;
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 
 import static java.lang.Thread.sleep;
 import static java.time.temporal.ChronoUnit.SECONDS;
@@ -16,7 +17,7 @@ class DownloadProgress{
 
 }
 public class server {
-    static Hashtable<InetAddress, DownloadProgress> speeds = new Hashtable<>();
+    static ConcurrentHashMap<InetAddress, DownloadProgress> speeds = new ConcurrentHashMap<>();
     static int port = 1234;
     public static void main(String[] args) {
         try {
@@ -36,11 +37,12 @@ public class server {
 
 class ClientHandler implements Runnable{
     Socket client;
-    Hashtable<InetAddress, DownloadProgress> speeds;
+    ConcurrentHashMap<InetAddress, DownloadProgress> speeds;
     public void run(){
         DownloadProgress dp = new DownloadProgress();
         dp.valid = 1;
-        try(DataInputStream input = new DataInputStream(client.getInputStream());) {
+        try(DataInputStream input = new DataInputStream(client.getInputStream());
+            DataOutputStream out = new DataOutputStream(client.getOutputStream())) {
             InetAddress inetAddress;
             SocketAddress socketAddress = client.getRemoteSocketAddress(); //get client's IP
             inetAddress = ((InetSocketAddress)socketAddress).getAddress();
@@ -55,16 +57,14 @@ class ClientHandler implements Runnable{
             LocalTime start = LocalTime.now();     //?
             int len = input.readInt();
             byte [] byteArray = new byte[len];
-//            for (int i = 0; i < len; i++){ //
-//                char a = input.readChar();
-//                System.out.println(a);
-//                name = name.concat(Character.toString(a));
-//            }
+            String msg;
             int namelen = 0;
             while (namelen < len) {
-                namelen+= input.read(byteArray, 0, len);
+                int tmp = input.read(byteArray, 0, len);
+                if (tmp >= 0) namelen+=tmp;
+                else break;
             }
-            String name = new String(byteArray, StandardCharsets.UTF_8);
+            String name = new String(byteArray, 0, namelen, StandardCharsets.UTF_8);
             System.out.println("name = " + name);
             File file = new File("C:\\study\\assignments\\seti\\02_sendfile\\uploads\\" + name.substring(0, len));
             try (BufferedOutputStream output = new BufferedOutputStream(new FileOutputStream(file));) {
@@ -79,7 +79,8 @@ class ClientHandler implements Runnable{
 
                 LocalTime looptime = LocalTime.now();
                 len = input.read(byteArray);
-                while (len != -1) {
+                int totallen = len;
+                while ((len != -1) && (totallen != size)) {
                     output.write(byteArray, 0, len);
                     output.flush();
                     speeds.get(inetAddress).total += len;
@@ -88,22 +89,33 @@ class ClientHandler implements Runnable{
                         speeds.get(inetAddress).speed = (double) len / LocalTime.from(looptime).getNano();
                     looptime = LocalTime.now();
                     len = input.read(byteArray);
+                    totallen += len;
                 }
-                speeds.get(inetAddress).valid = 0;
-                System.out.println("finished with client");
+                System.out.println("received file");
+                if (totallen == size) {
+                    msg = "success";
+                } else {
+                    msg = "failure";
+                }
             }
+            out.writeInt(msg.getBytes(StandardCharsets.UTF_8).length); //send size of message
+            out.flush();
+            out.write(msg.getBytes(StandardCharsets.UTF_8)); //send message
+            out.flush();
+            speeds.get(inetAddress).valid = 0;
+            System.out.println("finished with client");
         } catch (IOException e) {
             dp.valid = 0;
             e.printStackTrace();
         }
     }
 
-    ClientHandler(Socket s, Hashtable ht) {
+    ClientHandler(Socket s, ConcurrentHashMap<InetAddress, DownloadProgress> ht) {
         client = s;
         speeds = ht;
     }
 
-    public static void StartClientHandler(Socket s, Hashtable ht){
+    public static void StartClientHandler(Socket s, ConcurrentHashMap<InetAddress, DownloadProgress> ht){
         Thread t = new Thread(new ClientHandler(s, ht));
         t.start();
     }
@@ -111,21 +123,14 @@ class ClientHandler implements Runnable{
 }
 
 class TimeHandler implements Runnable{
-    Hashtable<InetAddress, DownloadProgress> speeds;
+    ConcurrentHashMap<InetAddress, DownloadProgress> speeds;
     public void run(){
-        while (true) {
-            try {
-                sleep(3000);
-            } catch (InterruptedException e) {
-                e.printStackTrace();
-            }
-            ShowSpeed();
-        }
+        ShowSpeed();
     }
-    TimeHandler(Hashtable ht) {
+    TimeHandler(ConcurrentHashMap<InetAddress, DownloadProgress> ht) {
         speeds = ht;
     }
-    public static void StartTimeHandler(Hashtable ht){
+    public static void StartTimeHandler(ConcurrentHashMap<InetAddress, DownloadProgress> ht){
         Thread t = new Thread(new TimeHandler(ht));
         t.start();
     }
@@ -135,13 +140,14 @@ class TimeHandler implements Runnable{
                 sleep(3000);
             } catch (InterruptedException e) {
                 e.printStackTrace();
-                System.out.println("sleep was interrupted");
+                //System.out.println("sleep was interrupted");
             }
-            Iterator it = speeds.entrySet().iterator();
+            Iterator<Map.Entry<InetAddress, DownloadProgress>> it = speeds.entrySet().iterator();
             while (it.hasNext()) {
-                Map.Entry pair = (Map.Entry) it.next();
-                DownloadProgress dp = (DownloadProgress)pair.getValue();
+                Map.Entry<InetAddress, DownloadProgress> pair = it.next();
+                DownloadProgress dp = pair.getValue();
                 System.out.println("Client : "  + pair.getKey() + "\t Speed : "  + dp.speed * 1000000000 + "\t Average Speed : "  + (double)dp.total * 1000000000/dp.time.getNano());
+                //System.out.println("total data size = " + dp.total);
                 if (dp.valid == 0) { //timeout
                     it.remove();
                 }
