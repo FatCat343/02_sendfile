@@ -67,7 +67,7 @@ class ClientHandler implements Runnable{
             String name = new String(byteArray, 0, namelen, StandardCharsets.UTF_8);
             System.out.println("name = " + name);
             File file = new File("C:\\study\\assignments\\seti\\02_sendfile\\uploads\\" + name.substring(0, len));
-            try (BufferedOutputStream output = new BufferedOutputStream(new FileOutputStream(file));) {
+            try (BufferedOutputStream output = new BufferedOutputStream(new FileOutputStream(file))) {
                 len += input.read(byteArray);
                 long size = ByteBuffer.wrap(byteArray).getLong(); //gets size of file
                 System.out.println("size = " + size);
@@ -140,14 +140,12 @@ class TimeHandler implements Runnable{
                 sleep(3000);
             } catch (InterruptedException e) {
                 e.printStackTrace();
-                //System.out.println("sleep was interrupted");
             }
             Iterator<Map.Entry<InetAddress, DownloadProgress>> it = speeds.entrySet().iterator();
             while (it.hasNext()) {
                 Map.Entry<InetAddress, DownloadProgress> pair = it.next();
                 DownloadProgress dp = pair.getValue();
                 System.out.println("Client : "  + pair.getKey() + "\t Speed : "  + dp.speed * 1000000000 + "\t Average Speed : "  + (double)dp.total * 1000000000/dp.time.getNano());
-                //System.out.println("total data size = " + dp.total);
                 if (dp.valid == 0) { //timeout
                     it.remove();
                 }
