@@ -46,13 +46,6 @@ class ClientHandler implements Runnable{
             InetAddress inetAddress;
             SocketAddress socketAddress = client.getRemoteSocketAddress(); //get client's IP
             inetAddress = ((InetSocketAddress)socketAddress).getAddress();
-//            if (inetAddress instanceof Inet4Address)
-//                System.out.println("IPv4: " + inetAddress);
-//            else if (inetAddress instanceof Inet6Address)
-//                    System.out.println("IPv6: " + inetAddress);
-//                else
-//                    System.err.println("Not an IP address.");
-
 
             LocalTime start = LocalTime.now();     //?
             int len = input.readInt();
@@ -66,6 +59,7 @@ class ClientHandler implements Runnable{
             }
             String name = new String(byteArray, 0, namelen, StandardCharsets.UTF_8);
             System.out.println("name = " + name);
+            if (name.contains("/") || name.contains("\\")) throw new IOException("filename contains wrong symbols : / or \\");
             File file = new File("uploads/" + name.substring(0, len));
             try (BufferedOutputStream output = new BufferedOutputStream(new FileOutputStream(file))) {
                 len += input.read(byteArray);
@@ -83,10 +77,13 @@ class ClientHandler implements Runnable{
                 while ((len != -1) && (totallen != size)) {
                     output.write(byteArray, 0, len);
                     output.flush();
-                    speeds.get(inetAddress).total += len;
-                    speeds.get(inetAddress).time = LocalTime.from(start);
+                    DownloadProgress tmpdp;
+                    tmpdp = speeds.get(inetAddress);
+                    tmpdp.total += len;
+                    tmpdp.time = LocalTime.from(start);
                     if (LocalTime.from(looptime).getSecond() != 0)
-                        speeds.get(inetAddress).speed = (double) len / LocalTime.from(looptime).getNano();
+                        tmpdp.speed = (double) len / LocalTime.from(looptime).getNano();
+                    speeds.replace(inetAddress, tmpdp);
                     looptime = LocalTime.now();
                     len = input.read(byteArray);
                     totallen += len;
@@ -98,6 +95,13 @@ class ClientHandler implements Runnable{
                     msg = "failure";
                 }
             }
+            catch (IOException err){
+                DownloadProgress tmp;
+                tmp = speeds.get(inetAddress);
+                tmp.valid = 0;
+                speeds.replace(inetAddress, tmp);
+                throw new IOException(err.getMessage());
+            }
             out.writeInt(msg.getBytes(StandardCharsets.UTF_8).length); //send size of message
             out.flush();
             out.write(msg.getBytes(StandardCharsets.UTF_8)); //send message
@@ -105,7 +109,7 @@ class ClientHandler implements Runnable{
             speeds.get(inetAddress).valid = 0;
             System.out.println("finished with client");
         } catch (IOException e) {
-            dp.valid = 0;
+            //dp.valid = 0;
             e.printStackTrace();
         }
     }
