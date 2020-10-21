@@ -46,12 +46,12 @@ class ClientHandler implements Runnable{
             InetAddress inetAddress;
             SocketAddress socketAddress = client.getRemoteSocketAddress(); //get client's IP
             inetAddress = ((InetSocketAddress)socketAddress).getAddress();
-            if (inetAddress instanceof Inet4Address)
-                System.out.println("IPv4: " + inetAddress);
-            else if (inetAddress instanceof Inet6Address)
-                    System.out.println("IPv6: " + inetAddress);
-                else
-                    System.err.println("Not an IP address.");
+//            if (inetAddress instanceof Inet4Address)
+//                System.out.println("IPv4: " + inetAddress);
+//            else if (inetAddress instanceof Inet6Address)
+//                    System.out.println("IPv6: " + inetAddress);
+//                else
+//                    System.err.println("Not an IP address.");
 
 
             LocalTime start = LocalTime.now();     //?
@@ -66,7 +66,7 @@ class ClientHandler implements Runnable{
             }
             String name = new String(byteArray, 0, namelen, StandardCharsets.UTF_8);
             System.out.println("name = " + name);
-            File file = new File("C:\\study\\assignments\\seti\\02_sendfile\\uploads\\" + name.substring(0, len));
+            File file = new File("uploads/" + name.substring(0, len));
             try (BufferedOutputStream output = new BufferedOutputStream(new FileOutputStream(file))) {
                 len += input.read(byteArray);
                 long size = ByteBuffer.wrap(byteArray).getLong(); //gets size of file
